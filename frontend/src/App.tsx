@@ -9,6 +9,8 @@ import Login from './pages/Login'
 import Register from './pages/Register'
 import Profile from './pages/Profile'
 import Orders from './pages/Orders'
+import Support from './pages/Support'
+import SupportTicketDetail from './pages/SupportTicketDetail'
 import AdminDashboard from './pages/admin/Dashboard'
 import AdminProducts from './pages/admin/Products'
 import AdminOrders from './pages/admin/Orders'
@@ -32,6 +34,10 @@ function App() {
         <Route path="register" element={<Register />} />
         <Route path="profile" element={<PrivateRoute><Profile /></PrivateRoute>} />
         <Route path="orders" element={<PrivateRoute><Orders /></PrivateRoute>} />
+
+        {/* Support Routes */}
+        <Route path="support" element={<PrivateRoute><Support /></PrivateRoute>} />
+        <Route path="support/:id" element={<PrivateRoute><SupportTicketDetail /></PrivateRoute>} />
 
         {/* Admin Routes */}
         <Route path="admin" element={<PrivateRoute adminOnly><AdminDashboard /></PrivateRoute>} />
