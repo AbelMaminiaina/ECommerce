@@ -175,7 +175,8 @@ export default function AdminOrders() {
 
       {/* Orders Table */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
-        <table className="w-full">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[900px]">
           <thead className="bg-gray-50">
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
@@ -245,6 +246,7 @@ export default function AdminOrders() {
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* Order Detail Modal */}
@@ -287,7 +289,8 @@ export default function AdminOrders() {
               <div>
                 <h3 className="font-semibold text-lg mb-2">Produits</h3>
                 <div className="border rounded-lg overflow-hidden">
-                  <table className="w-full">
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[500px]">
                     <thead className="bg-gray-50">
                       <tr>
                         <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Produit</th>
@@ -311,6 +314,7 @@ export default function AdminOrders() {
                       </tr>
                     </tbody>
                   </table>
+                  </div>
                 </div>
               </div>
 

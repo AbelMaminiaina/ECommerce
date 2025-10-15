@@ -156,19 +156,46 @@ public class ReturnsController : ControllerBase
     /// </summary>
     [Authorize(Roles = "Admin")]
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<ReturnResponseDto>>> GetAllReturns()
+    public async Task<ActionResult<IEnumerable<OrderDto>>> GetAllReturns()
     {
         var orders = await _orderRepository.GetAllAsync();
         var returns = orders
             .Where(o => o.ReturnStatus != ReturnStatus.None)
-            .Select(o => new ReturnResponseDto(
-                o.Id,
-                o.ReturnStatus,
-                o.ReturnReason ?? "",
-                o.ReturnRequestedAt ?? DateTime.MinValue,
-                o.ReturnDeadline
-            ));
+            .Select(MapToDto);
 
         return Ok(returns);
+    }
+
+    private static OrderDto MapToDto(Order order)
+    {
+        return new OrderDto(
+            order.Id,
+            order.UserId,
+            order.Items.Select(i => new OrderItemDto(i.ProductId, i.ProductName, i.Quantity, i.Price)).ToList(),
+            order.TotalAmount,
+            order.Status,
+            new AddressDto(
+                order.ShippingAddress.Street,
+                order.ShippingAddress.City,
+                order.ShippingAddress.State,
+                order.ShippingAddress.ZipCode,
+                order.ShippingAddress.Country,
+                order.ShippingAddress.IsDefault
+            ),
+            order.PaymentStatus,
+            order.CreatedAt,
+            order.DeliveredAt,
+            order.ReturnRequestedAt,
+            order.ReturnReason,
+            order.ReturnStatus,
+            order.ReturnDeadline,
+            order.CanReturn,
+            order.EstimatedDeliveryDate,
+            order.ShippedAt,
+            order.TrackingNumber,
+            order.CarrierName,
+            order.EstimatedDeliveryDays,
+            order.IsDeliveryDelayed
+        );
     }
 }

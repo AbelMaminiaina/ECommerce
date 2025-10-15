@@ -159,3 +159,60 @@ export interface ShippingMethod {
   carrierName: string
   isActive: boolean
 }
+
+export interface Package {
+  id: string
+  orderId: string
+  weight: number
+  length: number
+  width: number
+  height: number
+  status: PackageStatus
+  carrier: CarrierType
+  trackingNumber?: string
+  labelUrl?: string
+  preparedAt?: string
+  shippedAt?: string
+  shippingAddress: Address
+  pickupPointName?: string
+  trackingNotificationSent: boolean
+  notes?: string
+  createdAt: string
+}
+
+export enum PackageStatus {
+  Pending = 0,
+  Preparing = 1,
+  ReadyToShip = 2,
+  Shipped = 3,
+  Delivered = 4,
+  Exception = 5,
+  Returned = 6,
+}
+
+export enum CarrierType {
+  LaPoste = 0,
+  Colissimo = 1,
+  Chronopost = 2,
+  MondialRelay = 3,
+  DHL = 4,
+  UPS = 5,
+  FedEx = 6,
+}
+
+export interface CreatePackageData {
+  orderId: string
+  weight: number
+  length: number
+  width: number
+  height: number
+  carrier: CarrierType
+  pickupPointId?: string
+  notes?: string
+}
+
+export interface GenerateLabelResponse {
+  trackingNumber: string
+  labelUrl: string
+  estimatedDeliveryDate: string
+}

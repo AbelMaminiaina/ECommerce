@@ -19,6 +19,7 @@ import AdminReturns from './pages/admin/Returns'
 import AdminSupport from './pages/admin/Support'
 import AdminWarranty from './pages/admin/Warranty'
 import AdminShipping from './pages/admin/Shipping'
+import AdminPackages from './pages/admin/Packages'
 import PrivateRoute from './components/PrivateRoute'
 
 function App() {
@@ -50,6 +51,7 @@ function App() {
         <Route path="admin/support" element={<PrivateRoute adminOnly><AdminSupport /></PrivateRoute>} />
         <Route path="admin/warranty" element={<PrivateRoute adminOnly><AdminWarranty /></PrivateRoute>} />
         <Route path="admin/shipping" element={<PrivateRoute adminOnly><AdminShipping /></PrivateRoute>} />
+        <Route path="admin/packages" element={<PrivateRoute adminOnly><AdminPackages /></PrivateRoute>} />
       </Route>
     </Routes>
   )

@@ -1,9 +1,12 @@
 using System.Text;
 using ECommerce.Application.Interfaces;
+using ECommerce.Application.Services;
 using ECommerce.Domain.Interfaces;
 using ECommerce.Infrastructure.Authentication;
 using ECommerce.Infrastructure.Payment;
 using ECommerce.Infrastructure.Persistence;
+using ECommerce.Infrastructure.Services;
+using ECommerce.Infrastructure.Services.Carriers;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
@@ -62,10 +65,32 @@ builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
 builder.Services.AddScoped<IShippingMethodRepository, ShippingMethodRepository>();
 builder.Services.AddScoped<ISupportTicketRepository, SupportTicketRepository>();
 builder.Services.AddScoped<IWarrantyClaimRepository, WarrantyClaimRepository>();
+builder.Services.AddScoped<IPackageRepository, PackageRepository>();
 
 // Service Registration
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IPaymentService, StripePaymentService>();
+builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddScoped<IPackageService, PackageService>();
+builder.Services.AddScoped<ILabelGenerator, ShippingLabelGenerator>();
+
+// Carrier Services
+builder.Services.AddHttpClient();
+builder.Services.AddScoped<ColissimoCarrierService>();
+builder.Services.AddScoped<ChronopostCarrierService>();
+builder.Services.AddScoped<MondialRelayCarrierService>();
+builder.Services.AddScoped<DHLCarrierService>();
+builder.Services.AddScoped<ICarrierService>(sp =>
+{
+    var carriers = new List<ICarrierService>
+    {
+        sp.GetRequiredService<ColissimoCarrierService>(),
+        sp.GetRequiredService<ChronopostCarrierService>(),
+        sp.GetRequiredService<MondialRelayCarrierService>(),
+        sp.GetRequiredService<DHLCarrierService>()
+    };
+    return new CarrierServiceFactory(carriers);
+});
 
 // CORS
 builder.Services.AddCors(options =>

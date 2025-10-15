@@ -118,7 +118,7 @@ export default function AdminDashboard() {
 
       {/* Quick Actions */}
       <h2 className="text-2xl font-bold mb-4">Gestion générale</h2>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <Link
           to="/admin/products"
           className="bg-white p-6 rounded-lg shadow hover:shadow-md transition"
@@ -139,6 +139,17 @@ export default function AdminDashboard() {
             <h3 className="font-semibold text-lg">Gérer les commandes</h3>
           </div>
           <p className="text-gray-600 text-sm">Voir et mettre à jour les commandes</p>
+        </Link>
+
+        <Link
+          to="/admin/packages"
+          className="bg-white p-6 rounded-lg shadow hover:shadow-md transition"
+        >
+          <div className="flex items-center gap-3 mb-2">
+            <FiTruck className="text-orange-600" size={24} />
+            <h3 className="font-semibold text-lg">Préparer les colis</h3>
+          </div>
+          <p className="text-gray-600 text-sm">Générer les étiquettes et expédier</p>
         </Link>
 
         <Link
