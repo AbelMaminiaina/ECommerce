@@ -1,7 +1,6 @@
 using System.Security.Claims;
 using ECommerce.Application.DTOs;
-using ECommerce.Domain.Entities;
-using ECommerce.Domain.Interfaces;
+using ECommerce.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -12,18 +11,11 @@ namespace ECommerce.API.Controllers;
 [Route("api/[controller]")]
 public class WarrantyController : ControllerBase
 {
-    private readonly IWarrantyClaimRepository _warrantyRepository;
-    private readonly IOrderRepository _orderRepository;
-    private readonly IProductRepository _productRepository;
+    private readonly IWarrantyService _warrantyService;
 
-    public WarrantyController(
-        IWarrantyClaimRepository warrantyRepository,
-        IOrderRepository orderRepository,
-        IProductRepository productRepository)
+    public WarrantyController(IWarrantyService warrantyService)
     {
-        _warrantyRepository = warrantyRepository;
-        _orderRepository = orderRepository;
-        _productRepository = productRepository;
+        _warrantyService = warrantyService;
     }
 
     /// <summary>
@@ -36,60 +28,19 @@ public class WarrantyController : ControllerBase
         if (string.IsNullOrEmpty(userId))
             return Unauthorized();
 
-        // Vérifier que la commande existe et appartient à l'utilisateur
-        var order = await _orderRepository.GetByIdAsync(dto.OrderId);
-        if (order == null)
-            return NotFound(new { message = "Commande introuvable" });
-
-        if (order.UserId != userId)
+        try
+        {
+            var claim = await _warrantyService.SubmitClaimAsync(userId, dto);
+            return Ok(claim);
+        }
+        catch (UnauthorizedAccessException)
+        {
             return Forbid();
-
-        // Vérifier que le produit est dans la commande
-        var orderItem = order.Items.FirstOrDefault(i => i.ProductId == dto.ProductId);
-        if (orderItem == null)
-            return BadRequest(new { message = "Ce produit ne fait pas partie de cette commande" });
-
-        // Récupérer les infos du produit
-        var product = await _productRepository.GetByIdAsync(dto.ProductId);
-        if (product == null)
-            return NotFound(new { message = "Produit introuvable" });
-
-        // Calculer la date d'expiration de la garantie
-        var purchaseDate = order.CreatedAt;
-        var warrantyExpirationDate = purchaseDate.AddMonths(product.WarrantyMonths);
-
-        // Vérifier si la garantie est toujours valide
-        if (DateTime.UtcNow > warrantyExpirationDate)
-        {
-            return BadRequest(new
-            {
-                message = $"La garantie de {product.WarrantyMonths} mois a expiré le {warrantyExpirationDate:dd/MM/yyyy}"
-            });
         }
-
-        // Vérifier qu'il n'y a pas déjà une réclamation pour ce produit
-        var existingClaim = await _warrantyRepository.GetByOrderAndProductAsync(dto.OrderId, dto.ProductId);
-        if (existingClaim != null)
+        catch (Exception ex)
         {
-            return BadRequest(new { message = "Une réclamation existe déjà pour ce produit" });
+            return BadRequest(new { message = ex.Message });
         }
-
-        // Créer la réclamation
-        var claim = new WarrantyClaim
-        {
-            OrderId = dto.OrderId,
-            ProductId = dto.ProductId,
-            ProductName = orderItem.ProductName,
-            UserId = userId,
-            PurchaseDate = purchaseDate,
-            WarrantyExpirationDate = warrantyExpirationDate,
-            IssueDescription = dto.IssueDescription,
-            Photos = dto.Photos ?? new List<string>()
-        };
-
-        var createdClaim = await _warrantyRepository.CreateAsync(claim);
-
-        return Ok(MapToDto(createdClaim));
     }
 
     /// <summary>
@@ -102,10 +53,8 @@ public class WarrantyController : ControllerBase
         if (string.IsNullOrEmpty(userId))
             return Unauthorized();
 
-        var claims = await _warrantyRepository.GetByUserIdAsync(userId);
-        var claimDtos = claims.Select(MapToDto);
-
-        return Ok(claimDtos);
+        var claims = await _warrantyService.GetMyClaimsAsync(userId);
+        return Ok(claims);
     }
 
     /// <summary>
@@ -115,16 +64,23 @@ public class WarrantyController : ControllerBase
     public async Task<ActionResult<WarrantyClaimDto>> GetClaim(string claimId)
     {
         var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        var claim = await _warrantyRepository.GetByIdAsync(claimId);
+        if (string.IsNullOrEmpty(userId))
+            return Unauthorized();
 
-        if (claim == null)
-            return NotFound(new { message = "Réclamation introuvable" });
-
-        // Vérifier les permissions
-        if (claim.UserId != userId && !User.IsInRole("Admin"))
+        try
+        {
+            var isAdmin = User.IsInRole("Admin");
+            var claim = await _warrantyService.GetClaimByIdAsync(claimId, userId, isAdmin);
+            return Ok(claim);
+        }
+        catch (UnauthorizedAccessException)
+        {
             return Forbid();
-
-        return Ok(MapToDto(claim));
+        }
+        catch (Exception ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
     }
 
     /// <summary>
@@ -136,22 +92,15 @@ public class WarrantyController : ControllerBase
         string claimId,
         [FromBody] UpdateWarrantyClaimDto dto)
     {
-        var claim = await _warrantyRepository.GetByIdAsync(claimId);
-
-        if (claim == null)
-            return NotFound();
-
-        claim.Status = dto.Status;
-        claim.Resolution = dto.Resolution;
-        claim.AdminNotes = dto.AdminNotes;
-
-        if (dto.Status == WarrantyClaimStatus.Resolved)
-            claim.ResolvedAt = DateTime.UtcNow;
-
-        claim.UpdatedAt = DateTime.UtcNow;
-        await _warrantyRepository.UpdateAsync(claim);
-
-        return Ok(MapToDto(claim));
+        try
+        {
+            var claim = await _warrantyService.UpdateClaimAsync(claimId, dto);
+            return Ok(claim);
+        }
+        catch (Exception ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
     }
 
     /// <summary>
@@ -161,32 +110,7 @@ public class WarrantyController : ControllerBase
     [HttpGet("claims/admin/all")]
     public async Task<ActionResult<IEnumerable<WarrantyClaimDto>>> GetAllClaims()
     {
-        var claims = await _warrantyRepository.GetAllAsync();
-        var claimDtos = claims.Select(MapToDto);
-
-        return Ok(claimDtos);
-    }
-
-    private static WarrantyClaimDto MapToDto(WarrantyClaim claim)
-    {
-        var isUnderWarranty = DateTime.UtcNow <= claim.WarrantyExpirationDate;
-
-        return new WarrantyClaimDto(
-            claim.Id,
-            claim.OrderId,
-            claim.ProductId,
-            claim.ProductName,
-            claim.UserId,
-            claim.PurchaseDate,
-            claim.WarrantyExpirationDate,
-            claim.IssueDescription,
-            claim.Photos,
-            claim.Status,
-            claim.Resolution,
-            claim.AdminNotes,
-            claim.CreatedAt,
-            claim.ResolvedAt,
-            isUnderWarranty
-        );
+        var claims = await _warrantyService.GetAllClaimsAsync();
+        return Ok(claims);
     }
 }

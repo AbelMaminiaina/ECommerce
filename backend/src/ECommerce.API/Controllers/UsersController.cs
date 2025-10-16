@@ -1,7 +1,6 @@
 using System.Security.Claims;
 using ECommerce.Application.DTOs;
-using ECommerce.Domain.Entities;
-using ECommerce.Domain.Interfaces;
+using ECommerce.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -12,11 +11,11 @@ namespace ECommerce.API.Controllers;
 [Route("api/[controller]")]
 public class UsersController : ControllerBase
 {
-    private readonly IUserRepository _userRepository;
+    private readonly IUserService _userService;
 
-    public UsersController(IUserRepository userRepository)
+    public UsersController(IUserService userService)
     {
-        _userRepository = userRepository;
+        _userService = userService;
     }
 
     // GET: api/users
@@ -24,60 +23,52 @@ public class UsersController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<IEnumerable<UserDto>>> GetAllUsers()
     {
-        var users = await _userRepository.GetAllAsync();
-        var userDtos = users.Select(MapToDto);
-        return Ok(userDtos);
+        var users = await _userService.GetAllUsersAsync();
+        return Ok(users);
     }
 
     // GET: api/users/{id}
     [HttpGet("{id}")]
     public async Task<ActionResult<UserDto>> GetUserById(string id)
     {
-        var currentUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        var isAdmin = User.IsInRole("Admin");
+        try
+        {
+            var currentUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var isAdmin = User.IsInRole("Admin");
 
-        // Les utilisateurs peuvent voir leur propre profil, les admins peuvent voir tous les profils
-        if (currentUserId != id && !isAdmin)
-            return Forbid();
+            // Les utilisateurs peuvent voir leur propre profil, les admins peuvent voir tous les profils
+            if (currentUserId != id && !isAdmin)
+                return Forbid();
 
-        var user = await _userRepository.GetByIdAsync(id);
-        if (user == null)
-            return NotFound();
-
-        return Ok(MapToDto(user));
+            var user = await _userService.GetUserByIdAsync(id);
+            return Ok(user);
+        }
+        catch (Exception ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
     }
 
     // PUT: api/users/{id}
     [HttpPut("{id}")]
     public async Task<ActionResult<UserDto>> UpdateUser(string id, [FromBody] UpdateUserDto dto)
     {
-        var currentUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        var isAdmin = User.IsInRole("Admin");
-
-        // Les utilisateurs peuvent modifier leur propre profil, les admins peuvent modifier tous les profils
-        if (currentUserId != id && !isAdmin)
-            return Forbid();
-
-        var user = await _userRepository.GetByIdAsync(id);
-        if (user == null)
-            return NotFound();
-
-        user.FirstName = dto.FirstName;
-        user.LastName = dto.LastName;
-        user.PhoneNumber = dto.PhoneNumber;
-        user.Addresses = dto.Addresses.Select(a => new Address
+        try
         {
-            Street = a.Street,
-            City = a.City,
-            State = a.State,
-            ZipCode = a.ZipCode,
-            Country = a.Country,
-            IsDefault = a.IsDefault
-        }).ToList();
-        user.UpdatedAt = DateTime.UtcNow;
+            var currentUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var isAdmin = User.IsInRole("Admin");
 
-        var updated = await _userRepository.UpdateAsync(user);
-        return Ok(MapToDto(updated));
+            // Les utilisateurs peuvent modifier leur propre profil, les admins peuvent modifier tous les profils
+            if (currentUserId != id && !isAdmin)
+                return Forbid();
+
+            var updated = await _userService.UpdateUserAsync(id, dto);
+            return Ok(updated);
+        }
+        catch (Exception ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
     }
 
     // PUT: api/users/{id}/role
@@ -85,19 +76,19 @@ public class UsersController : ControllerBase
     [HttpPut("{id}/role")]
     public async Task<ActionResult<UserDto>> UpdateUserRole(string id, [FromBody] UpdateUserRoleDto dto)
     {
-        var user = await _userRepository.GetByIdAsync(id);
-        if (user == null)
-            return NotFound();
-
-        // Valider le rôle
-        if (dto.Role != "Admin" && dto.Role != "Customer")
-            return BadRequest(new { message = "Invalid role. Must be 'Admin' or 'Customer'" });
-
-        user.Role = dto.Role;
-        user.UpdatedAt = DateTime.UtcNow;
-
-        var updated = await _userRepository.UpdateAsync(user);
-        return Ok(MapToDto(updated));
+        try
+        {
+            var updated = await _userService.UpdateUserRoleAsync(id, dto.Role);
+            return Ok(updated);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
     }
 
     // PUT: api/users/{id}/status
@@ -105,15 +96,15 @@ public class UsersController : ControllerBase
     [HttpPut("{id}/status")]
     public async Task<ActionResult<UserDto>> UpdateUserStatus(string id, [FromBody] UpdateUserStatusDto dto)
     {
-        var user = await _userRepository.GetByIdAsync(id);
-        if (user == null)
-            return NotFound();
-
-        user.IsActive = dto.IsActive;
-        user.UpdatedAt = DateTime.UtcNow;
-
-        var updated = await _userRepository.UpdateAsync(user);
-        return Ok(MapToDto(updated));
+        try
+        {
+            var updated = await _userService.UpdateUserStatusAsync(id, dto.IsActive);
+            return Ok(updated);
+        }
+        catch (Exception ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
     }
 
     // DELETE: api/users/{id}
@@ -121,17 +112,26 @@ public class UsersController : ControllerBase
     [HttpDelete("{id}")]
     public async Task<IActionResult> DeleteUser(string id)
     {
-        var currentUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        try
+        {
+            var currentUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(currentUserId))
+                return Unauthorized();
 
-        // Empêcher un admin de se supprimer lui-même
-        if (currentUserId == id)
-            return BadRequest(new { message = "Cannot delete your own account" });
+            var result = await _userService.DeleteUserAsync(id, currentUserId);
+            if (!result)
+                return NotFound();
 
-        var result = await _userRepository.DeleteAsync(id);
-        if (!result)
-            return NotFound();
-
-        return NoContent();
+            return NoContent();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
     }
 
     // GET: api/users/search?term=...
@@ -139,59 +139,23 @@ public class UsersController : ControllerBase
     [HttpGet("search")]
     public async Task<ActionResult<IEnumerable<UserDto>>> SearchUsers([FromQuery] string term)
     {
-        if (string.IsNullOrWhiteSpace(term))
-            return BadRequest(new { message = "Search term is required" });
-
-        var users = await _userRepository.FindAsync(u =>
-            u.Email.Contains(term) ||
-            u.FirstName.Contains(term) ||
-            u.LastName.Contains(term));
-
-        var userDtos = users.Select(MapToDto);
-        return Ok(userDtos);
+        try
+        {
+            var users = await _userService.SearchUsersAsync(term);
+            return Ok(users);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     // GET: api/users/stats
     [Authorize(Roles = "Admin")]
     [HttpGet("stats")]
-    public async Task<ActionResult<object>> GetUserStats()
+    public async Task<ActionResult<UserStatsDto>> GetUserStats()
     {
-        var allUsers = await _userRepository.GetAllAsync();
-        var usersList = allUsers.ToList();
-
-        var stats = new
-        {
-            TotalUsers = usersList.Count,
-            ActiveUsers = usersList.Count(u => u.IsActive),
-            InactiveUsers = usersList.Count(u => !u.IsActive),
-            Admins = usersList.Count(u => u.Role == "Admin"),
-            Customers = usersList.Count(u => u.Role == "Customer"),
-            RecentUsers = usersList
-                .OrderByDescending(u => u.CreatedAt)
-                .Take(5)
-                .Select(MapToDto)
-        };
-
+        var stats = await _userService.GetUserStatsAsync();
         return Ok(stats);
-    }
-
-    private static UserDto MapToDto(User user)
-    {
-        return new UserDto(
-            user.Id,
-            user.Email,
-            user.FirstName,
-            user.LastName,
-            user.PhoneNumber,
-            user.Addresses.Select(a => new AddressDto(
-                a.Street,
-                a.City,
-                a.State,
-                a.ZipCode,
-                a.Country,
-                a.IsDefault
-            )).ToList(),
-            user.Role
-        );
     }
 }

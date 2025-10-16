@@ -42,3 +42,9 @@ obj/
 # MongoDB
 *.mdf
 *.ldf
+
+# Configuration files with secrets
+**/appsettings.json
+**/appsettings.Development.json
+**/appsettings.*.json
+!**/appsettings.Example.json

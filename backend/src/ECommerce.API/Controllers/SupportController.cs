@@ -1,7 +1,6 @@
 using System.Security.Claims;
 using ECommerce.Application.DTOs;
-using ECommerce.Domain.Entities;
-using ECommerce.Domain.Interfaces;
+using ECommerce.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -12,15 +11,11 @@ namespace ECommerce.API.Controllers;
 [Route("api/[controller]")]
 public class SupportController : ControllerBase
 {
-    private readonly ISupportTicketRepository _ticketRepository;
-    private readonly IUserRepository _userRepository;
+    private readonly ISupportService _supportService;
 
-    public SupportController(
-        ISupportTicketRepository ticketRepository,
-        IUserRepository userRepository)
+    public SupportController(ISupportService supportService)
     {
-        _ticketRepository = ticketRepository;
-        _userRepository = userRepository;
+        _supportService = supportService;
     }
 
     /// <summary>
@@ -33,32 +28,15 @@ public class SupportController : ControllerBase
         if (string.IsNullOrEmpty(userId))
             return Unauthorized();
 
-        var user = await _userRepository.GetByIdAsync(userId);
-        if (user == null)
-            return Unauthorized();
-
-        var ticket = new SupportTicket
+        try
         {
-            UserId = userId,
-            OrderId = dto.OrderId,
-            Subject = dto.Subject,
-            Description = dto.Description,
-            Category = dto.Category,
-            Messages = new List<TicketMessage>
-            {
-                new TicketMessage
-                {
-                    SenderId = userId,
-                    SenderName = $"{user.FirstName} {user.LastName}",
-                    IsFromAdmin = false,
-                    Message = dto.Description
-                }
-            }
-        };
-
-        var createdTicket = await _ticketRepository.CreateAsync(ticket);
-
-        return Ok(MapToDto(createdTicket));
+            var ticket = await _supportService.CreateTicketAsync(userId, dto);
+            return Ok(ticket);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     /// <summary>
@@ -71,10 +49,8 @@ public class SupportController : ControllerBase
         if (string.IsNullOrEmpty(userId))
             return Unauthorized();
 
-        var tickets = await _ticketRepository.GetByUserIdAsync(userId);
-        var ticketDtos = tickets.Select(MapToDto);
-
-        return Ok(ticketDtos);
+        var tickets = await _supportService.GetMyTicketsAsync(userId);
+        return Ok(tickets);
     }
 
     /// <summary>
@@ -84,16 +60,23 @@ public class SupportController : ControllerBase
     public async Task<ActionResult<TicketDto>> GetTicket(string ticketId)
     {
         var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        var ticket = await _ticketRepository.GetByIdAsync(ticketId);
+        if (string.IsNullOrEmpty(userId))
+            return Unauthorized();
 
-        if (ticket == null)
-            return NotFound(new { message = "Ticket introuvable" });
-
-        // Vérifier les permissions
-        if (ticket.UserId != userId && !User.IsInRole("Admin"))
+        try
+        {
+            var isAdmin = User.IsInRole("Admin");
+            var ticket = await _supportService.GetTicketByIdAsync(ticketId, userId, isAdmin);
+            return Ok(ticket);
+        }
+        catch (UnauthorizedAccessException)
+        {
             return Forbid();
-
-        return Ok(MapToDto(ticket));
+        }
+        catch (Exception ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
     }
 
     /// <summary>
@@ -108,45 +91,20 @@ public class SupportController : ControllerBase
         if (string.IsNullOrEmpty(userId))
             return Unauthorized();
 
-        var ticket = await _ticketRepository.GetByIdAsync(ticketId);
-
-        if (ticket == null)
-            return NotFound(new { message = "Ticket introuvable" });
-
-        // Vérifier les permissions
-        if (ticket.UserId != userId && !User.IsInRole("Admin"))
+        try
+        {
+            var isAdmin = User.IsInRole("Admin");
+            var ticket = await _supportService.AddMessageAsync(ticketId, userId, isAdmin, dto.Message);
+            return Ok(ticket);
+        }
+        catch (UnauthorizedAccessException)
+        {
             return Forbid();
-
-        var user = await _userRepository.GetByIdAsync(userId);
-        if (user == null)
-            return Unauthorized();
-
-        var message = new TicketMessage
-        {
-            SenderId = userId,
-            SenderName = $"{user.FirstName} {user.LastName}",
-            IsFromAdmin = User.IsInRole("Admin"),
-            Message = dto.Message,
-            Attachments = dto.Attachments ?? new List<string>()
-        };
-
-        ticket.Messages.Add(message);
-
-        // Si admin répond, mettre le statut à InProgress
-        if (User.IsInRole("Admin") && ticket.Status == TicketStatus.Open)
-        {
-            ticket.Status = TicketStatus.InProgress;
         }
-        // Si client répond alors que le ticket était en attente, le remettre en InProgress
-        else if (!User.IsInRole("Admin") && ticket.Status == TicketStatus.WaitingCustomer)
+        catch (Exception ex)
         {
-            ticket.Status = TicketStatus.InProgress;
+            return NotFound(new { message = ex.Message });
         }
-
-        ticket.UpdatedAt = DateTime.UtcNow;
-        await _ticketRepository.UpdateAsync(ticket);
-
-        return Ok(MapToDto(ticket));
     }
 
     /// <summary>
@@ -158,39 +116,24 @@ public class SupportController : ControllerBase
         string ticketId,
         [FromBody] UpdateTicketStatusDto dto)
     {
-        var ticket = await _ticketRepository.GetByIdAsync(ticketId);
+        try
+        {
+            var ticket = await _supportService.UpdateTicketStatusAsync(ticketId, (int)dto.Status);
 
-        if (ticket == null)
-            return NotFound();
+            if (dto.Priority.HasValue || !string.IsNullOrEmpty(dto.AssignedToAdminId))
+            {
+                if (!string.IsNullOrEmpty(dto.AssignedToAdminId))
+                {
+                    ticket = await _supportService.AssignTicketAsync(ticketId, dto.AssignedToAdminId);
+                }
+            }
 
-        ticket.Status = dto.Status;
-
-        if (dto.Priority.HasValue)
-            ticket.Priority = dto.Priority.Value;
-
-        if (!string.IsNullOrEmpty(dto.AssignedToAdminId))
-            ticket.AssignedToAdminId = dto.AssignedToAdminId;
-
-        if (dto.Status == TicketStatus.Closed || dto.Status == TicketStatus.Resolved)
-            ticket.ClosedAt = DateTime.UtcNow;
-
-        ticket.UpdatedAt = DateTime.UtcNow;
-        await _ticketRepository.UpdateAsync(ticket);
-
-        return Ok(MapToDto(ticket));
-    }
-
-    /// <summary>
-    /// Obtenir tous les tickets ouverts (Admin uniquement)
-    /// </summary>
-    [Authorize(Roles = "Admin")]
-    [HttpGet("tickets/admin/open")]
-    public async Task<ActionResult<IEnumerable<TicketDto>>> GetOpenTickets()
-    {
-        var tickets = await _ticketRepository.GetOpenTicketsAsync();
-        var ticketDtos = tickets.Select(MapToDto);
-
-        return Ok(ticketDtos);
+            return Ok(ticket);
+        }
+        catch (Exception ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
     }
 
     /// <summary>
@@ -200,34 +143,7 @@ public class SupportController : ControllerBase
     [HttpGet("tickets/admin/all")]
     public async Task<ActionResult<IEnumerable<TicketDto>>> GetAllTickets()
     {
-        var tickets = await _ticketRepository.GetAllAsync();
-        var ticketDtos = tickets.Select(MapToDto);
-
-        return Ok(ticketDtos);
-    }
-
-    private static TicketDto MapToDto(SupportTicket ticket)
-    {
-        return new TicketDto(
-            ticket.Id,
-            ticket.UserId,
-            ticket.OrderId,
-            ticket.Subject,
-            ticket.Description,
-            ticket.Category,
-            ticket.Status,
-            ticket.Priority,
-            ticket.Messages.Select(m => new TicketMessageDto(
-                m.SenderId,
-                m.SenderName,
-                m.IsFromAdmin,
-                m.Message,
-                m.Attachments,
-                m.CreatedAt
-            )).ToList(),
-            ticket.AssignedToAdminId,
-            ticket.CreatedAt,
-            ticket.ClosedAt
-        );
+        var tickets = await _supportService.GetAllTicketsAsync();
+        return Ok(tickets);
     }
 }

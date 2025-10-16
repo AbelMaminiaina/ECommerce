@@ -34,3 +34,28 @@ public record ShippingMethodDto(
     string CarrierName,
     bool IsActive
 );
+
+/// <summary>
+/// DTO pour créer une méthode de livraison (Admin)
+/// </summary>
+public record CreateShippingMethodDto(
+    string Name,
+    string Description,
+    decimal Price,
+    int MinDeliveryDays,
+    int MaxDeliveryDays,
+    string CarrierName
+);
+
+/// <summary>
+/// DTO pour mettre à jour une méthode de livraison (Admin)
+/// </summary>
+public record UpdateShippingMethodDto(
+    string? Name,
+    string? Description,
+    decimal? Price,
+    int? MinDeliveryDays,
+    int? MaxDeliveryDays,
+    string? CarrierName,
+    bool? IsActive
+);

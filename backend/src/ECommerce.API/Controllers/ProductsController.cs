@@ -1,6 +1,5 @@
 using ECommerce.Application.DTOs;
-using ECommerce.Domain.Entities;
-using ECommerce.Domain.Interfaces;
+using ECommerce.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -10,119 +9,100 @@ namespace ECommerce.API.Controllers;
 [Route("api/[controller]")]
 public class ProductsController : ControllerBase
 {
-    private readonly IProductRepository _productRepository;
+    private readonly IProductService _productService;
 
-    public ProductsController(IProductRepository productRepository)
+    public ProductsController(IProductService productService)
     {
-        _productRepository = productRepository;
+        _productService = productService;
     }
 
     [HttpGet]
     public async Task<ActionResult<IEnumerable<ProductDto>>> GetAll()
     {
-        var products = await _productRepository.GetAllAsync();
-        var productDtos = products.Select(MapToDto);
-        return Ok(productDtos);
+        var products = await _productService.GetAllProductsAsync();
+        return Ok(products);
     }
 
     [HttpGet("featured")]
     public async Task<ActionResult<IEnumerable<ProductDto>>> GetFeatured()
     {
-        var products = await _productRepository.GetFeaturedProductsAsync();
-        var productDtos = products.Select(MapToDto);
-        return Ok(productDtos);
+        var products = await _productService.GetFeaturedProductsAsync();
+        return Ok(products);
     }
 
     [HttpGet("{id}")]
     public async Task<ActionResult<ProductDto>> GetById(string id)
     {
-        var product = await _productRepository.GetByIdAsync(id);
-        if (product == null)
-            return NotFound();
-
-        return Ok(MapToDto(product));
+        try
+        {
+            var product = await _productService.GetProductByIdAsync(id);
+            return Ok(product);
+        }
+        catch (Exception ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
     }
 
     [HttpGet("category/{categoryId}")]
     public async Task<ActionResult<IEnumerable<ProductDto>>> GetByCategory(string categoryId)
     {
-        var products = await _productRepository.GetByCategoryAsync(categoryId);
-        var productDtos = products.Select(MapToDto);
-        return Ok(productDtos);
+        var products = await _productService.GetProductsByCategoryAsync(categoryId);
+        return Ok(products);
     }
 
     [HttpGet("search")]
     public async Task<ActionResult<IEnumerable<ProductDto>>> Search([FromQuery] string term)
     {
-        var products = await _productRepository.SearchProductsAsync(term);
-        var productDtos = products.Select(MapToDto);
-        return Ok(productDtos);
+        var products = await _productService.SearchProductsAsync(term);
+        return Ok(products);
     }
 
     [Authorize(Roles = "Admin")]
     [HttpPost]
     public async Task<ActionResult<ProductDto>> Create([FromBody] CreateProductDto dto)
     {
-        var product = new Product
+        try
         {
-            Name = dto.Name,
-            Description = dto.Description,
-            Price = dto.Price,
-            Stock = dto.Stock,
-            CategoryId = dto.CategoryId,
-            Images = dto.Images,
-            IsFeatured = dto.IsFeatured,
-            Specifications = dto.Specifications
-        };
-
-        var created = await _productRepository.CreateAsync(product);
-        return CreatedAtAction(nameof(GetById), new { id = created.Id }, MapToDto(created));
+            var created = await _productService.CreateProductAsync(dto);
+            return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     [Authorize(Roles = "Admin")]
     [HttpPut("{id}")]
     public async Task<ActionResult<ProductDto>> Update(string id, [FromBody] UpdateProductDto dto)
     {
-        var product = await _productRepository.GetByIdAsync(id);
-        if (product == null)
-            return NotFound();
-
-        product.Name = dto.Name;
-        product.Description = dto.Description;
-        product.Price = dto.Price;
-        product.Stock = dto.Stock;
-        product.CategoryId = dto.CategoryId;
-        product.Images = dto.Images;
-        product.IsFeatured = dto.IsFeatured;
-        product.Specifications = dto.Specifications;
-
-        var updated = await _productRepository.UpdateAsync(product);
-        return Ok(MapToDto(updated));
+        try
+        {
+            var updated = await _productService.UpdateProductAsync(id, dto);
+            return Ok(updated);
+        }
+        catch (Exception ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
     }
 
     [Authorize(Roles = "Admin")]
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(string id)
     {
-        var result = await _productRepository.DeleteAsync(id);
-        if (!result)
-            return NotFound();
+        try
+        {
+            var result = await _productService.DeleteProductAsync(id);
+            if (!result)
+                return NotFound();
 
-        return NoContent();
-    }
-
-    private static ProductDto MapToDto(Product product)
-    {
-        return new ProductDto(
-            product.Id,
-            product.Name,
-            product.Description,
-            product.Price,
-            product.Stock,
-            product.CategoryId,
-            product.Images,
-            product.IsFeatured,
-            product.Specifications
-        );
+            return NoContent();
+        }
+        catch (Exception ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
     }
 }

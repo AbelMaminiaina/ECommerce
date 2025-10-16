@@ -73,6 +73,15 @@ builder.Services.AddScoped<IPaymentService, StripePaymentService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IPackageService, PackageService>();
 builder.Services.AddScoped<ILabelGenerator, ShippingLabelGenerator>();
+builder.Services.AddScoped<IOrderService, OrderService>();
+builder.Services.AddScoped<IReturnService, ReturnService>();
+builder.Services.AddScoped<IProductService, ProductService>();
+builder.Services.AddScoped<ICartService, CartService>();
+builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<ICategoryService, CategoryService>();
+builder.Services.AddScoped<IShippingService, ShippingService>();
+builder.Services.AddScoped<ISupportService, SupportService>();
+builder.Services.AddScoped<IWarrantyService, WarrantyService>();
 
 // Carrier Services
 builder.Services.AddHttpClient();

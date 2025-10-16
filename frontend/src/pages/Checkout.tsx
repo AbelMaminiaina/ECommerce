@@ -7,7 +7,7 @@ import useCartStore from '../stores/cartStore'
 import useAuthStore from '../stores/authStore'
 import { Address } from '../types'
 
-const stripePromise = loadStripe('your_stripe_publishable_key_here')
+const stripePromise = loadStripe('pk_test_51SIe4PBhOpZ1QNOEV9wxREJlTs4Ov3mBg7qYkn0LIJUgcMBfilukW4s5toOfKrrI5lsJ2QHZrFkf56iynFQQ3qOP008cVJpq0w')
 
 function CheckoutForm() {
   const navigate = useNavigate()

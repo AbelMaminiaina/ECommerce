@@ -1,6 +1,5 @@
 using ECommerce.Application.DTOs;
-using ECommerce.Domain.Entities;
-using ECommerce.Domain.Interfaces;
+using ECommerce.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -10,74 +9,64 @@ namespace ECommerce.API.Controllers;
 [Route("api/[controller]")]
 public class CategoriesController : ControllerBase
 {
-    private readonly ICategoryRepository _categoryRepository;
+    private readonly ICategoryService _categoryService;
 
-    public CategoriesController(ICategoryRepository categoryRepository)
+    public CategoriesController(ICategoryService categoryService)
     {
-        _categoryRepository = categoryRepository;
+        _categoryService = categoryService;
     }
 
     [HttpGet]
     public async Task<ActionResult<IEnumerable<CategoryDto>>> GetAll()
     {
-        var categories = await _categoryRepository.GetAllAsync();
-        var categoryDtos = categories.Select(MapToDto);
-        return Ok(categoryDtos);
+        var categories = await _categoryService.GetAllCategoriesAsync();
+        return Ok(categories);
     }
 
     [HttpGet("{id}")]
     public async Task<ActionResult<CategoryDto>> GetById(string id)
     {
-        var category = await _categoryRepository.GetByIdAsync(id);
-        if (category == null)
-            return NotFound();
-
-        return Ok(MapToDto(category));
+        try
+        {
+            var category = await _categoryService.GetCategoryByIdAsync(id);
+            return Ok(category);
+        }
+        catch (Exception ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
     }
 
     [HttpGet("{id}/subcategories")]
     public async Task<ActionResult<IEnumerable<CategoryDto>>> GetSubcategories(string id)
     {
-        var subcategories = await _categoryRepository.GetSubcategoriesAsync(id);
-        var categoryDtos = subcategories.Select(MapToDto);
-        return Ok(categoryDtos);
+        var subcategories = await _categoryService.GetSubcategoriesAsync(id);
+        return Ok(subcategories);
     }
 
     [Authorize(Roles = "Admin")]
     [HttpPost]
     public async Task<ActionResult<CategoryDto>> Create([FromBody] CreateCategoryDto dto)
     {
-        var category = new Category
+        try
         {
-            Name = dto.Name,
-            Description = dto.Description,
-            ParentCategoryId = dto.ParentCategoryId,
-            ImageUrl = dto.ImageUrl
-        };
-
-        var created = await _categoryRepository.CreateAsync(category);
-        return CreatedAtAction(nameof(GetById), new { id = created.Id }, MapToDto(created));
+            var created = await _categoryService.CreateCategoryAsync(dto);
+            return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     [Authorize(Roles = "Admin")]
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(string id)
     {
-        var result = await _categoryRepository.DeleteAsync(id);
+        var result = await _categoryService.DeleteCategoryAsync(id);
         if (!result)
             return NotFound();
 
         return NoContent();
-    }
-
-    private static CategoryDto MapToDto(Category category)
-    {
-        return new CategoryDto(
-            category.Id,
-            category.Name,
-            category.Description,
-            category.ParentCategoryId,
-            category.ImageUrl
-        );
     }
 }

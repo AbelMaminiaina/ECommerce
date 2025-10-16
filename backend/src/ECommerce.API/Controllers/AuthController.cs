@@ -1,7 +1,6 @@
 using System.Security.Claims;
 using ECommerce.Application.DTOs;
 using ECommerce.Application.Interfaces;
-using ECommerce.Domain.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -12,12 +11,12 @@ namespace ECommerce.API.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
-    private readonly IUserRepository _userRepository;
+    private readonly IUserService _userService;
 
-    public AuthController(IAuthService authService, IUserRepository userRepository)
+    public AuthController(IAuthService authService, IUserService userService)
     {
         _authService = authService;
-        _userRepository = userRepository;
+        _userService = userService;
     }
 
     [HttpPost("register")]
@@ -66,24 +65,18 @@ public class AuthController : ControllerBase
     [HttpGet("profile")]
     public async Task<ActionResult<UserDto>> GetProfile()
     {
-        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (string.IsNullOrEmpty(userId))
-            return Unauthorized();
+        try
+        {
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userId))
+                return Unauthorized();
 
-        var user = await _userRepository.GetByIdAsync(userId);
-        if (user == null)
-            return NotFound();
-
-        var userDto = new UserDto(
-            user.Id,
-            user.Email,
-            user.FirstName,
-            user.LastName,
-            user.PhoneNumber,
-            user.Addresses.Select(a => new AddressDto(a.Street, a.City, a.State, a.ZipCode, a.Country, a.IsDefault)).ToList(),
-            user.Role
-        );
-
-        return Ok(userDto);
+            var user = await _userService.GetUserByIdAsync(userId);
+            return Ok(user);
+        }
+        catch (Exception ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
     }
 }

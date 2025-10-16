@@ -1,7 +1,7 @@
 using System.Security.Claims;
 using ECommerce.Application.DTOs;
+using ECommerce.Application.Interfaces;
 using ECommerce.Domain.Entities;
-using ECommerce.Domain.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -12,11 +12,11 @@ namespace ECommerce.API.Controllers;
 [Route("api/[controller]")]
 public class ReturnsController : ControllerBase
 {
-    private readonly IOrderRepository _orderRepository;
+    private readonly IReturnService _returnService;
 
-    public ReturnsController(IOrderRepository orderRepository)
+    public ReturnsController(IReturnService returnService)
     {
-        _orderRepository = orderRepository;
+        _returnService = returnService;
     }
 
     /// <summary>
@@ -27,54 +27,23 @@ public class ReturnsController : ControllerBase
         string orderId,
         [FromBody] RequestReturnDto dto)
     {
-        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (string.IsNullOrEmpty(userId))
-            return Unauthorized();
-
-        var order = await _orderRepository.GetByIdAsync(orderId);
-
-        if (order == null)
-            return NotFound(new { message = "Commande introuvable" });
-
-        // Vérifier que la commande appartient à l'utilisateur
-        if (order.UserId != userId)
-            return Forbid();
-
-        // Vérifier si le retour est possible
-        if (!order.CanReturn)
+        try
         {
-            if (order.ReturnStatus != ReturnStatus.None)
-                return BadRequest(new { message = "Un retour a déjà été demandé pour cette commande" });
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userId))
+                return Unauthorized();
 
-            if (order.Status != OrderStatus.Delivered)
-                return BadRequest(new { message = "La commande doit être livrée pour être retournée" });
-
-            if (!order.DeliveredAt.HasValue)
-                return BadRequest(new { message = "La date de livraison n'est pas définie" });
-
-            if (DateTime.UtcNow > order.ReturnDeadline)
-                return BadRequest(new { message = $"Le délai de rétractation de 14 jours est dépassé. Date limite: {order.ReturnDeadline:dd/MM/yyyy}" });
-
-            return BadRequest(new { message = "Le retour n'est pas possible pour cette commande" });
+            var response = await _returnService.RequestReturnAsync(orderId, userId, dto);
+            return Ok(response);
         }
-
-        // Enregistrer la demande de retour
-        order.ReturnRequestedAt = DateTime.UtcNow;
-        order.ReturnReason = dto.Reason;
-        order.ReturnStatus = ReturnStatus.Requested;
-        order.Status = OrderStatus.ReturnRequested;
-
-        await _orderRepository.UpdateAsync(order);
-
-        var response = new ReturnResponseDto(
-            order.Id,
-            order.ReturnStatus,
-            order.ReturnReason ?? "",
-            order.ReturnRequestedAt.Value,
-            order.ReturnDeadline
-        );
-
-        return Ok(response);
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     /// <summary>
@@ -83,27 +52,24 @@ public class ReturnsController : ControllerBase
     [HttpGet("orders/{orderId}")]
     public async Task<ActionResult<ReturnResponseDto>> GetReturnInfo(string orderId)
     {
-        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        var order = await _orderRepository.GetByIdAsync(orderId);
+        try
+        {
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userId))
+                return Unauthorized();
 
-        if (order == null)
-            return NotFound();
-
-        if (order.UserId != userId && !User.IsInRole("Admin"))
+            var isAdmin = User.IsInRole("Admin");
+            var response = await _returnService.GetReturnInfoAsync(orderId, userId, isAdmin);
+            return Ok(response);
+        }
+        catch (UnauthorizedAccessException)
+        {
             return Forbid();
-
-        if (order.ReturnStatus == ReturnStatus.None)
-            return NotFound(new { message = "Aucun retour demandé pour cette commande" });
-
-        var response = new ReturnResponseDto(
-            order.Id,
-            order.ReturnStatus,
-            order.ReturnReason ?? "",
-            order.ReturnRequestedAt ?? DateTime.MinValue,
-            order.ReturnDeadline
-        );
-
-        return Ok(response);
+        }
+        catch (Exception ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
     }
 
     /// <summary>
@@ -115,40 +81,15 @@ public class ReturnsController : ControllerBase
         string orderId,
         [FromBody] UpdateReturnStatusDto dto)
     {
-        var order = await _orderRepository.GetByIdAsync(orderId);
-
-        if (order == null)
-            return NotFound();
-
-        if (order.ReturnStatus == ReturnStatus.None)
-            return BadRequest(new { message = "Aucun retour n'a été demandé pour cette commande" });
-
-        // Mettre à jour le statut
-        order.ReturnStatus = dto.Status;
-
-        // Si le retour est approuvé et le produit reçu, rembourser et marquer comme retourné
-        if (dto.Status == ReturnStatus.Refunded)
+        try
         {
-            order.Status = OrderStatus.Returned;
-            order.PaymentStatus = PaymentStatus.Refunded;
+            var response = await _returnService.UpdateReturnStatusAsync(orderId, dto);
+            return Ok(response);
         }
-        else if (dto.Status == ReturnStatus.Rejected)
+        catch (Exception ex)
         {
-            // Si rejeté, remettre en "Delivered"
-            order.Status = OrderStatus.Delivered;
+            return BadRequest(new { message = ex.Message });
         }
-
-        await _orderRepository.UpdateAsync(order);
-
-        var response = new ReturnResponseDto(
-            order.Id,
-            order.ReturnStatus,
-            order.ReturnReason ?? "",
-            order.ReturnRequestedAt ?? DateTime.MinValue,
-            order.ReturnDeadline
-        );
-
-        return Ok(response);
     }
 
     /// <summary>
@@ -158,44 +99,14 @@ public class ReturnsController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<IEnumerable<OrderDto>>> GetAllReturns()
     {
-        var orders = await _orderRepository.GetAllAsync();
-        var returns = orders
-            .Where(o => o.ReturnStatus != ReturnStatus.None)
-            .Select(MapToDto);
-
-        return Ok(returns);
-    }
-
-    private static OrderDto MapToDto(Order order)
-    {
-        return new OrderDto(
-            order.Id,
-            order.UserId,
-            order.Items.Select(i => new OrderItemDto(i.ProductId, i.ProductName, i.Quantity, i.Price)).ToList(),
-            order.TotalAmount,
-            order.Status,
-            new AddressDto(
-                order.ShippingAddress.Street,
-                order.ShippingAddress.City,
-                order.ShippingAddress.State,
-                order.ShippingAddress.ZipCode,
-                order.ShippingAddress.Country,
-                order.ShippingAddress.IsDefault
-            ),
-            order.PaymentStatus,
-            order.CreatedAt,
-            order.DeliveredAt,
-            order.ReturnRequestedAt,
-            order.ReturnReason,
-            order.ReturnStatus,
-            order.ReturnDeadline,
-            order.CanReturn,
-            order.EstimatedDeliveryDate,
-            order.ShippedAt,
-            order.TrackingNumber,
-            order.CarrierName,
-            order.EstimatedDeliveryDays,
-            order.IsDeliveryDelayed
-        );
+        try
+        {
+            var returns = await _returnService.GetAllReturnsAsync();
+            return Ok(returns);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 }

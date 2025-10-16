@@ -52,3 +52,13 @@ public record UpdateUserRoleDto(
 public record UpdateUserStatusDto(
     bool IsActive
 );
+
+public class UserStatsDto
+{
+    public int TotalUsers { get; set; }
+    public int ActiveUsers { get; set; }
+    public int InactiveUsers { get; set; }
+    public int Admins { get; set; }
+    public int Customers { get; set; }
+    public List<UserDto> RecentUsers { get; set; } = new();
+}

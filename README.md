@@ -289,13 +289,291 @@ Le backend inclut un système de seed automatique qui crée :
 
 Ces données sont créées automatiquement au premier démarrage de l'application.
 
-## Configuration Stripe
+## ⚙️ Configuration Complète
 
-1. Créez un compte sur [Stripe](https://stripe.com)
-2. Obtenez vos clés API (test mode)
-3. Configurez :
-   - Backend : `appsettings.json` → `StripeSettings.SecretKey`
-   - Frontend : `src/pages/Checkout.tsx` → `loadStripe('pk_test_...')`
+### 1. Configuration Stripe (Paiement)
+
+#### Étape 1 : Obtenir les clés de test Stripe
+
+1. Créez un compte sur [stripe.com](https://stripe.com)
+2. Connectez-vous au Dashboard Stripe
+3. Allez dans **Développeurs → Clés API**
+4. **Activez le mode Test** (toggle en haut à droite)
+5. Copiez :
+   - **Clé secrète** (commence par `sk_test_...`)
+   - **Clé publiable** (commence par `pk_test_...`)
+
+#### Étape 2 : Configurer le Backend
+
+Éditez `backend/src/ECommerce.API/appsettings.json` :
+```json
+{
+  "StripeSettings": {
+    "SecretKey": "sk_test_51Abc...XYZ",
+    "PublishableKey": "pk_test_51Abc...XYZ"
+  }
+}
+```
+
+**ET** `backend/src/ECommerce.API/appsettings.Development.json` :
+```json
+{
+  "StripeSettings": {
+    "SecretKey": "sk_test_51Abc...XYZ",
+    "PublishableKey": "pk_test_51Abc...XYZ"
+  }
+}
+```
+
+#### Étape 3 : Configurer le Frontend
+
+Éditez `frontend/src/pages/Checkout.tsx` ligne 10 :
+```typescript
+const stripePromise = loadStripe('pk_test_51Abc...XYZ')
+```
+
+#### Étape 4 : Tester avec des cartes de test
+
+| Carte | Numéro | Résultat |
+|-------|--------|----------|
+| Succès | `4242 4242 4242 4242` | Paiement réussi |
+| Refus | `4000 0000 0000 0002` | Carte refusée |
+| Fonds insuffisants | `4000 0000 0000 9995` | Fonds insuffisants |
+| 3D Secure | `4000 0025 0000 3155` | Authentification requise |
+
+**Pour tous les tests :**
+- Date d'expiration : n'importe quelle date future (ex: `12/34`)
+- CVC : n'importe quel code à 3 chiffres (ex: `123`)
+- Code postal : n'importe lequel (ex: `75001`)
+
+#### Étape 5 : Vérifier les paiements
+
+- Dashboard Stripe : [dashboard.stripe.com/test/payments](https://dashboard.stripe.com/test/payments)
+- Vous verrez tous vos paiements de test
+
+---
+
+### 2. Configuration MongoDB
+
+#### Installation locale
+
+**Windows :**
+```bash
+# Télécharger MongoDB Community Server depuis mongodb.com
+# Installer et démarrer le service MongoDB
+```
+
+**macOS (Homebrew) :**
+```bash
+brew tap mongodb/brew
+brew install mongodb-community
+brew services start mongodb-community
+```
+
+**Linux :**
+```bash
+sudo apt-get install mongodb
+sudo systemctl start mongodb
+```
+
+#### Configuration dans appsettings.json
+
+```json
+{
+  "MongoDbSettings": {
+    "ConnectionString": "mongodb://localhost:27017",
+    "DatabaseName": "ECommerceDB"
+  }
+}
+```
+
+**Pour MongoDB Atlas (cloud) :**
+```json
+{
+  "MongoDbSettings": {
+    "ConnectionString": "mongodb+srv://username:password@cluster.mongodb.net",
+    "DatabaseName": "ECommerceDB"
+  }
+}
+```
+
+#### Vérifier la connexion
+
+```bash
+# Ouvrir MongoDB Shell
+mongosh
+
+# Lister les bases de données
+show dbs
+
+# Utiliser votre base de données
+use ECommerceDB
+
+# Vérifier les collections
+show collections
+```
+
+---
+
+### 3. Configuration JWT (Authentification)
+
+Éditez `backend/src/ECommerce.API/appsettings.json` :
+
+```json
+{
+  "JwtSettings": {
+    "Secret": "VotreCleSuperSecreteDeMinimum32Caracteres!",
+    "Issuer": "ECommerceAPI",
+    "Audience": "ECommerceClient",
+    "AccessTokenExpirationMinutes": 480,
+    "RefreshTokenExpirationDays": 7
+  }
+}
+```
+
+**Important :**
+- La clé secrète (`Secret`) doit faire **au moins 32 caractères**
+- **Changez cette valeur en production !**
+- Ne commitez jamais vos vraies clés secrètes dans Git
+
+---
+
+### 4. Configuration Email (Optionnel)
+
+Pour envoyer des emails de confirmation, notifications, etc.
+
+#### Avec Gmail
+
+```json
+{
+  "Email": {
+    "SmtpHost": "smtp.gmail.com",
+    "SmtpPort": 587,
+    "SmtpUsername": "votre.email@gmail.com",
+    "SmtpPassword": "votre_mot_de_passe_application",
+    "FromEmail": "votre.email@gmail.com",
+    "FromName": "Votre E-Commerce"
+  }
+}
+```
+
+**Pour Gmail, vous devez :**
+1. Activer la validation en 2 étapes sur votre compte Google
+2. Générer un "Mot de passe d'application" :
+   - Allez dans Paramètres Google → Sécurité → Validation en 2 étapes
+   - "Mots de passe des applications" → Créer un mot de passe
+   - Utilisez ce mot de passe dans `SmtpPassword`
+
+#### Avec d'autres fournisseurs
+
+**SendGrid :**
+```json
+{
+  "Email": {
+    "SmtpHost": "smtp.sendgrid.net",
+    "SmtpPort": 587,
+    "SmtpUsername": "apikey",
+    "SmtpPassword": "votre_api_key_sendgrid",
+    "FromEmail": "noreply@votresite.com",
+    "FromName": "Votre E-Commerce"
+  }
+}
+```
+
+**Mailgun, Postmark, etc.** : Consultez leur documentation respective.
+
+---
+
+### 5. Configuration des Transporteurs (Optionnel)
+
+Pour l'intégration avec les API de suivi de colis.
+
+```json
+{
+  "Carriers": {
+    "Colissimo": {
+      "ApiUrl": "https://ws.colissimo.fr/sls-ws/SlsServiceWS",
+      "ContractNumber": "votre_numero_contrat",
+      "Password": "votre_mot_de_passe"
+    },
+    "Chronopost": {
+      "ApiUrl": "https://ws.chronopost.fr/shipping-cxf/ShippingServiceWS",
+      "AccountNumber": "votre_numero_compte",
+      "Password": "votre_mot_de_passe"
+    },
+    "MondialRelay": {
+      "ApiUrl": "https://api.mondialrelay.com/Web_Services.asmx",
+      "BrandCode": "votre_code_enseigne",
+      "ApiKey": "votre_cle_api"
+    },
+    "DHL": {
+      "ApiUrl": "https://api-eu.dhl.com/parcel/de/shipping/v2",
+      "ApiKey": "votre_cle_api",
+      "AccountNumber": "votre_numero_compte"
+    }
+  }
+}
+```
+
+**Note :** Ces intégrations nécessitent des contrats avec les transporteurs.
+
+---
+
+### 6. Variables d'Environnement (Production)
+
+**Ne mettez JAMAIS vos vraies clés dans `appsettings.json` en production !**
+
+Utilisez plutôt des variables d'environnement :
+
+```bash
+# Linux/macOS
+export StripeSettings__SecretKey="sk_live_..."
+export MongoDbSettings__ConnectionString="mongodb+srv://..."
+export JwtSettings__Secret="VotreCleSecrete..."
+
+# Windows (PowerShell)
+$env:StripeSettings__SecretKey="sk_live_..."
+$env:MongoDbSettings__ConnectionString="mongodb+srv://..."
+$env:JwtSettings__Secret="VotreCleSecrete..."
+```
+
+Ou configurez-les dans votre plateforme de déploiement (Azure, AWS, Heroku, etc.).
+
+---
+
+### 7. Récapitulatif des Configurations
+
+| Configuration | Requis | Fichier(s) | Notes |
+|---------------|--------|-----------|-------|
+| **MongoDB** | ✅ Oui | `appsettings.json` | Base de données principale |
+| **JWT Secret** | ✅ Oui | `appsettings.json` | Min 32 caractères |
+| **Stripe (Test)** | ✅ Oui | `appsettings.json` + `Checkout.tsx` | Pour tester les paiements |
+| **Stripe (Prod)** | ⚠️ Production | Variables d'environnement | Clés `sk_live_...` et `pk_live_...` |
+| **Email/SMTP** | ❌ Optionnel | `appsettings.json` | Pour notifications |
+| **Transporteurs** | ❌ Optionnel | `appsettings.json` | Pour suivi avancé |
+
+---
+
+### 8. Démarrage Rapide
+
+Une fois toutes les configurations en place :
+
+```bash
+# Terminal 1 : Backend
+cd backend/src/ECommerce.API
+dotnet run
+
+# Terminal 2 : Frontend
+cd frontend
+npm run dev
+```
+
+**URLs :**
+- Frontend : `http://localhost:3000`
+- Backend API : `https://localhost:5000`
+- Swagger : `https://localhost:5000/swagger`
+
+---
 
 ## Structure du projet
 
