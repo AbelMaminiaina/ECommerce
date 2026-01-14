@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:7.0
+    container_name: ecommerce-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: ECommerceDB
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - ecommerce-network
+
+  mongo-express:
+    image: mongo-express:latest
+    container_name: ecommerce-mongo-express
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      ME_CONFIG_MONGODB_URL: mongodb://mongodb:27017/
+      ME_CONFIG_BASICAUTH: false
+    depends_on:
+      - mongodb
+    networks:
+      - ecommerce-network
+
+volumes:
+  mongodb_data:
+    driver: local
+
+networks:
+  ecommerce-network:
+    driver: bridge

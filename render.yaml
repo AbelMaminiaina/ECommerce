@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: ecommerce-backend
+    env: dotnet
+    region: frankfurt
+    plan: free
+    buildCommand: dotnet restore && dotnet publish backend/src/ecommerce.api/ECommerce.API.csproj -c Release -o out
+    startCommand: dotnet out/ECommerce.API.dll
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: MongoDbSettings__ConnectionString
+        sync: false
+      - key: MongoDbSettings__DatabaseName
+        value: ECommerceDB
+      - key: JwtSettings__Secret
+        sync: false
+      - key: JwtSettings__Issuer
+        value: ECommerceAPI
+      - key: JwtSettings__Audience
+        value: ECommerceClient
+      - key: JwtSettings__AccessTokenExpirationMinutes
+        value: 480
+      - key: JwtSettings__RefreshTokenExpirationDays
+        value: 7
+      - key: StripeSettings__SecretKey
+        sync: false
+      - key: StripeSettings__PublishableKey
+        sync: false
+      - key: FRONTEND_URL
+        sync: false

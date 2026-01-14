@@ -106,7 +106,22 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowReactApp", policy =>
     {
-        policy.WithOrigins("http://localhost:3000", "http://localhost:3001", "http://localhost:3002", "http://localhost:5173")
+        var allowedOrigins = new List<string>
+        {
+            "http://localhost:3000",
+            "http://localhost:3001",
+            "http://localhost:3002",
+            "http://localhost:5173"
+        };
+
+        // Add production frontend URL from environment variable
+        var frontendUrl = builder.Configuration["FRONTEND_URL"];
+        if (!string.IsNullOrEmpty(frontendUrl))
+        {
+            allowedOrigins.Add(frontendUrl);
+        }
+
+        policy.WithOrigins(allowedOrigins.ToArray())
               .AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials();

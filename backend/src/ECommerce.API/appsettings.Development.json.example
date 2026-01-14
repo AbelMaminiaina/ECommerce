@@ -1,0 +1,23 @@
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "MongoDbSettings": {
+    "ConnectionString": "mongodb+srv://<username>:<password>@<cluster>.mongodb.net/?retryWrites=true&w=majority",
+    "DatabaseName": "ECommerceDB"
+  },
+  "JwtSettings": {
+    "Secret": "YourSuperSecretKeyThatIsAtLeast32CharactersLong!",
+    "Issuer": "ECommerceAPI",
+    "Audience": "ECommerceClient",
+    "AccessTokenExpirationMinutes": 480,
+    "RefreshTokenExpirationDays": 7
+  },
+  "StripeSettings": {
+    "SecretKey": "sk_test_your_stripe_secret_key",
+    "PublishableKey": "pk_test_your_stripe_publishable_key"
+  }
+}
