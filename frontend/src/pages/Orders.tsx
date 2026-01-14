@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import api from '../services/api'
-import { Order, OrderStatus, PaymentStatus, ReturnStatus } from '../types'
+import { Order, OrderStatus, ReturnStatus } from '../types'
 import { FiPackage, FiTruck, FiCheck, FiX, FiRotateCcw, FiAlertCircle, FiClock } from 'react-icons/fi'
 
 export default function Orders() {
