@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import { FiPackage, FiShoppingBag, FiUsers, FiDollarSign, FiRotateCcw, FiHeadphones, FiShield, FiTruck } from 'react-icons/fi'
 import { useEffect, useState } from 'react'
 import api from '../../services/api'
-import { Product, Order, User } from '../../types'
+import { Product, Order } from '../../types'
 
 interface Stats {
   productsCount: number

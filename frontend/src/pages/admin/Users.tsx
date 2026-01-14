@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { FiSearch, FiEdit2, FiTrash2, FiUserCheck, FiUserX } from 'react-icons/fi'
+import { FiSearch, FiTrash2, FiUserCheck, FiUserX } from 'react-icons/fi'
 import api from '../../services/api'
 import { User } from '../../types'
 
@@ -16,8 +16,6 @@ export default function AdminUsers() {
   const [stats, setStats] = useState<UserStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
-  const [selectedUser, setSelectedUser] = useState<User | null>(null)
-  const [showEditModal, setShowEditModal] = useState(false)
 
   useEffect(() => {
     fetchUsers()

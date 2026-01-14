@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import api from '../../services/api'
-import { Order, ReturnStatus, OrderStatus } from '../../types'
+import { Order, ReturnStatus } from '../../types'
 
 export default function AdminReturns() {
   const [returns, setReturns] = useState<Order[]>([])

@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import api from '../services/api'
-import { User, LoginCredentials, RegisterData, AuthResponse } from '../types'
+import { User, RegisterData, AuthResponse } from '../types'
 
 interface AuthState {
   user: User | null
